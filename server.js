@@ -1,26 +1,40 @@
-// This is your test secret API key.
-const stripe = require('stripe')('sk_test_51P3uTJRvZadNamZ5pkKSscSjBd3dzxA6hSXQ7ENDBRESLiPKEE2CiHb4eRGA5GrVvaMC0bFLeqc8vsuHxWtLerKO00lHBukJDu');
+const stripe = require('stripe')(
+  'sk_test_51P3uTJRvZadNamZ5pkKSscSjBd3dzxA6hSXQ7ENDBRESLiPKEE2CiHb4eRGA5GrVvaMC0bFLeqc8vsuHxWtLerKO00lHBukJDu'
+);
 const express = require('express');
+const cors = require('cors');
+const bodyParser = require('body-parser');
+
 const app = express();
 app.use(express.static('public'));
+app.use(cors());
+app.use(bodyParser.json());
 
 const YOUR_DOMAIN = 'http://localhost:4242';
 
-app.post('/create-checkout-session', async (req, res) => {
-  const session = await stripe.checkout.sessions.create({
-    ui_mode: 'embedded',
-    line_items: [
-      {
-        // Provide the exact Price ID (for example, pr_1234) of the product you want to sell
-        price: '{{PRICE_ID}}',
-        quantity: 1,
+app.post('/checkout', async (req, res) => {
+  const items = req.body.items.map((item) => {
+    return {
+      price_data: {
+        currency: 'usd',
+        product_data: {
+          name: item.title,
+          images: [item.image],
+        },
+        unit_amount: item.price * 100,
       },
-    ],
-    mode: 'payment',
-    return_url: `${YOUR_DOMAIN}/return.html?session_id={CHECKOUT_SESSION_ID}`,
+      quantity: item.qty,
+    };
   });
 
-  res.send({clientSecret: session.client_secret});
+  const session = await stripe.checkout.sessions.create({
+    line_items: [...items],
+    mode: 'payment',
+    success_url: `${YOUR_DOMAIN}/success.html`,
+    cancel_url: `${YOUR_DOMAIN}/cancel.html`,
+  });
+
+  res.status(200).json(session);
 });
 
 app.get('/session-status', async (req, res) => {
@@ -28,7 +42,7 @@ app.get('/session-status', async (req, res) => {
 
   res.send({
     status: session.status,
-    customer_email: session.customer_details.email
+    customer_email: session.customer_details.email,
   });
 });
 
